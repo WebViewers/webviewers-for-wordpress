@@ -32,9 +32,11 @@ define('WP_WEBVIEWER_URL', wp_webviewer_get_url());
 
 function wp_webviewer_init() {
     wp_register_script('wp_webviewer_jschannel', WP_WEBVIEWER_URL.'resources/jschannel.js');
+    wp_register_script('wp_webviewer_renderjs_jquery',
+                       WP_WEBVIEWER_URL.'resources/renderjs_jquery.js',
     wp_register_script('wp_webviewer_renderjs',
                        WP_WEBVIEWER_URL.'resources/renderjs.js',
-                       array('wp_webviewer_jschannel','jquery'));
+                       array('wp_webviewer_jschannel','wp_webviewer_renderjs_jquery'));
     wp_register_script('wp_webviewer_main',
                        WP_WEBVIEWER_URL.'resources/webviewer.js',
                        array('wp_webviewer_renderjs'));

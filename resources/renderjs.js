@@ -1,5 +1,5 @@
 /*! RenderJs v0.2  */
-/*global jQuery, window, document, DOMParser, Channel */
+/*global renderJS_jQuery, window, document, DOMParser, Channel */
 "use strict";
 
 /*
@@ -58,7 +58,25 @@
     gadget_loading_klass,
     methods,
     loading_gadget_promise,
-    renderJS;
+    renderJS,
+
+    /**
+     * The scripts which are needed in order for renderjs to function
+     * inside of an iframed environment. This is a list of strings representing
+     * the absolute locations of the scripts.
+     */
+    renderjs_required_scripts = [],
+
+    /**
+     * The regular expressions for matching the scripts which should be copied
+     * to the gadget if it is running in an iframe.
+     */
+    required_script_regexes = [
+      /.*renderjs\.js/,
+      /.*renderjs_jquery.js/,
+      /.*jschannel.js/
+    ];
+  ;
 
   function RenderJSGadget() {}
   RenderJSGadget.prototype.title = "";
@@ -224,6 +242,13 @@
   RenderJSIframeGadget.prototype = new RenderJSGadget();
   RenderJSIframeGadget.prototype.constructor = RenderJSIframeGadget;
 
+  // get an absolute url for a relative one
+  function qualifyURL(url) {
+	  var a = document.createElement('a');
+	  a.href = url;
+	  return a.href;
+  }
+
   RenderJSGadget.prototype.declareIframedGadget =
     function (url, jquery_context) {
       var previous_loading_gadget_promise = loading_gadget_promise,
@@ -252,53 +277,78 @@
                     'width="' + $(jquery_context).width() + '" ' +
                     'height="' + $(jquery_context).height() + '"></iframe>'
           );
-          gadget.chan = Channel.build({
-            window: gadget.context.find('iframe').first()[0].contentWindow,
-            origin: "*",
-            scope: "renderJS"
-          });
 
-//           gadget.getTitle = function () {
-//             var dfr = $.Deferred();
-//             gadget.chan.call({
-//               method: "getTitle",
-//               success: function (v) {
-//                 dfr.resolve(v);
-//               }
-//             });
-//             return dfr.promise();
-//           };
+          gadget.gadgetWindow =
+            gadget.context.find('iframe').first()[0].contentWindow;
+          var onMessage = function (event) {
+            if (event.data.id !== "renderjs-stub-request") {
+              return;
+            }
+            if (window.addEventListener) {
+                window.removeEventListener('message', onMessage);
+            } else {
+                window.detachEvent('onmessage', onMessage);
+            }
+            gadget.gadgetWindow.postMessage(JSON.stringify({
+              cookie: event.data.cookie,
+              id: "renderjs-stub-response",
+              scripts: renderjs_required_scripts,
+            }), '*');
 
-          gadget.chan.bind("declareMethod", function (trans, method_name) {
-            gadget[method_name] = function () {
-              var dfr = $.Deferred();
-              gadget.chan.call({
-                method: "methodCall",
-                params: [
-                  method_name,
-                  Array.prototype.slice.call(arguments, 0)],
-                success: function () {
-                  dfr.resolveWith(gadget, arguments);
-                },
-                error: function () {
-                  dfr.rejectWith(gadget, arguments);
-                }
-                // XXX Error callback
-              });
-              return dfr.promise();
-            };
-            return "OK";
-          });
+            gadget.chan = Channel.build({
+              window: gadget.context.find('iframe').first()[0].contentWindow,
+              origin: "*",
+              scope: "renderJS"
+            });
 
-          // Wait for the iframe to be loaded before continuing
-          gadget.chan.bind("ready", function (trans) {
-            next_loading_gadget_deferred.resolve(gadget);
-            return "OK";
-          });
-          gadget.chan.bind("failed", function (trans) {
-            next_loading_gadget_deferred.reject();
-            return "OK";
-          });
+  //           gadget.getTitle = function () {
+  //             var dfr = $.Deferred();
+  //             gadget.chan.call({
+  //               method: "getTitle",
+  //               success: function (v) {
+  //                 dfr.resolve(v);
+  //               }
+  //             });
+  //             return dfr.promise();
+  //           };
+
+            gadget.chan.bind("declareMethod", function (trans, method_name) {
+              gadget[method_name] = function () {
+                var dfr = $.Deferred();
+                gadget.chan.call({
+                  method: "methodCall",
+                  params: [
+                    method_name,
+                    Array.prototype.slice.call(arguments, 0)],
+                  success: function () {
+                    dfr.resolveWith(gadget, arguments);
+                  },
+                  error: function () {
+                    dfr.rejectWith(gadget, arguments);
+                  }
+                  // XXX Error callback
+                });
+                return dfr.promise();
+              };
+              return "OK";
+            });
+
+            // Wait for the iframe to be loaded before continuing
+            gadget.chan.bind("ready", function (trans) {
+              next_loading_gadget_deferred.resolve(gadget);
+              return "OK";
+            });
+            gadget.chan.bind("failed", function (trans) {
+              next_loading_gadget_deferred.reject();
+              return "OK";
+            });
+          };
+          if (window.addEventListener) {
+            window.addEventListener('message', onMessage);
+          } else {
+            window.attachEvent('onmessage', onMessage);
+          }
+
         } else {
           next_loading_gadget_deferred.reject();
         }
@@ -753,8 +803,25 @@
     }
     gadget_loading_klass = tmp_constructor;
 
+    // Add the scripts which may be needed by gadgets which are loaded in iframes.
+    ;(function () {
+      var scripts = document.getElementsByTagName('script'),
+        src;
+      for (var i = 0; i < scripts.length; i++) {
+        src = scripts[i].getAttribute('src');
+        for (var j = required_script_regexes.length-1; j >= 0; j--) {
+          if (required_script_regexes[j].test(src)) {
+            required_script_regexes.splice(j, 1);
+            renderjs_required_scripts.push(qualifyURL(src));
+          }
+        }
+      }
 
-
+      if (required_script_regexes.length > 0) {
+        throw new Error('no script available matching [' +
+            required_script_regexes[0] + ']');
+      }
+    }());
 
     // run on next tick so that if this was pulled in with requirejs,
     // rJS.ready() can still be used.
@@ -794,4 +861,4 @@
   }
   bootstrap();
 
-}(document, window, jQuery, DOMParser, Channel));
+}(document, window, renderJS_jQuery, DOMParser, Channel));

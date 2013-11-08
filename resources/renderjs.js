@@ -281,7 +281,15 @@
           gadget.gadgetWindow =
             gadget.context.find('iframe').first()[0].contentWindow;
           var onMessage = function (event) {
-            if (event.data.id !== "renderjs-stub-request") {
+            var data, cookie, id;
+            try {
+              data = JSON.parse(event.data);
+              cookie = data.cookie;
+              id = data.id;
+              if (id !== "renderjs-stub-request") {
+                return;
+              }
+            } catch (e) {
               return;
             }
             if (window.addEventListener) {
@@ -290,7 +298,7 @@
                 window.detachEvent('onmessage', onMessage);
             }
             gadget.gadgetWindow.postMessage(JSON.stringify({
-              cookie: event.data.cookie,
+              cookie: cookie,
               id: "renderjs-stub-response",
               scripts: renderjs_required_scripts,
             }), '*');

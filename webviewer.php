@@ -52,18 +52,16 @@ function wp_webviewer_get_viewer($fileType, $action) {
         if ($filename === '..' || $filename === '.') { continue; }
         $fpath = $path.$filename;
         if (!is_dir($fpath)) { continue; }
-        $filePath = $fpath.'/package.json';
+        $filePath = $fpath.'/webviewer.json';
         if (!file_exists($filePath)) { continue; }
         $content = file_get_contents($filePath);
         if (!($json = json_decode($content))) { continue; }
-        if (!isset($json->resilience)) { continue; }
-        if (isset($json->modelVersion) && $json->modelVersion != "0.1") { continue; }
-        if (!isset($json->resilience->actions)) { continue; }
-        if (!isset($json->resilience->actions->{$action})) { continue; }
-        $fileTypes = $json->resilience->actions->{$action};
+        if (!isset($json->actions)) { continue; }
+        if (!isset($json->actions->{$action})) { continue; }
+        $fileTypes = $json->actions->{$action};
         if (!in_array($fileType, $fileTypes)) { continue; }
         // Found an appropriate viewer...
-        $main = isset($json->resilience->main) ? $json->resilience->main : 'index.html';
+        $main = isset($json->main) ? $json->main : 'index.html';
         return str_replace(WP_WEBVIEWER_DIR, WP_WEBVIEWER_URL, $fpath.'/'.$main);
     }
     return NULL;

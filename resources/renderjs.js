@@ -839,7 +839,8 @@
         // XXX HTML properties can only be set when the DOM is fully loaded
         var settings = renderJS.parseGadgetHTML($('html')[0].outerHTML),
           promise,
-          key;
+          key,
+          event;
         for (key in settings) {
           if (settings.hasOwnProperty(key)) {
             tmp_constructor.prototype[key] = settings[key];
@@ -855,6 +856,11 @@
             $.each(css_list, function (i, required_url) {
               stylesheet_registration_dict[url] = null;
             });
+
+            event = document.createEvent('Event');
+            event.initEvent("renderjs:ready", true, true);
+            document.dispatchEvent(event);
+
             $.each(tmp_constructor.ready_list, function (i, callback) {
               callback.apply(root_gadget);
             });
